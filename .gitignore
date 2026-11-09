@@ -1,0 +1,8 @@
+# 运行状态和报告：内容可能涉及隐私，也会频繁变化
+state/
+
+# dispatch.ps1 自动生成的模型/effort 变体
+templates/*--*.md
+
+# 备份文件
+*.bak

@@ -1,0 +1,37 @@
+{
+  "id": "root",
+  "type": "column",
+  "background": "canvas",
+  "terminal_padding": [14, 12],
+  "divider": { "width": 1, "color": "border" },
+  "children": [
+    {
+      "id": "board",
+      "type": "block",
+      "size": { "weight": 3 },
+      "min": 220,
+      "content": { "mod": "agent-board" }
+    },
+    {
+      "id": "live-head",
+      "type": "block",
+      "size": { "px": 34 },
+      "resizable": false,
+      "content": { "mod": "agent-board", "props": { "part": "live" } }
+    },
+    {
+      "id": "live",
+      "type": "block",
+      "size": { "weight": 2 },
+      "min": 140,
+      "background": "background",
+      "content": { "agent": "focused" }
+    },
+    {
+      "id": "supervisor-bar",
+      "type": "block",
+      "size": { "px": 28 },
+      "content": { "mod": "supervisor" }
+    }
+  ]
+}
