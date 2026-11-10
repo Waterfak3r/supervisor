@@ -4,7 +4,7 @@
 
 ## Windows / PowerShell 5.1
 - 脚本里有中文，`.ps1` 必须存成 UTF-8 **带 BOM**，否则 5.1 按 ANSI 读会乱码。`tools\` 下现有 5 个脚本（dispatch、common、resume、sync-templates、watch）都是带 BOM 的，新脚本照做（T008；核实 2026-11-10，前 3 字节 239,187,191）
-- 多行提交说明：PowerShell 工具里用单引号 here-string `git commit -m @'…'@`（结尾 `'@` 顶格）可以正常提交（2026-11-10 实测两次）。T009 曾报过一次被拆成多个参数、出现 pathspec 错误，原因不明，可能和写法有关；如果又遇到，就把说明写进文件，再用 `git commit -F <文件>`（T009；核实 2026-11-10）
+- 多行提交说明：PowerShell 5.1 把参数传给 git 等外部程序时，**参数里的英文双引号会把它拆成多个参数**，git 报一串 `pathspec … did not match`，提交失败。所以 `git commit -m @'…'@` 只在说明里没有英文双引号时可用。稳妥写法：把说明写进 UTF-8 文件，用 `git commit -F <文件>`（T009；2026-11-10 复现并确认原因）
 - 本机 PATH 里 Git 自带的 `tar`、`scp`（`D:\Programming\Git\usr\bin`）排在系统自带之前，会把 `C:\...` 当成远程主机名。打包或 scp 时先 cd 到暂存目录，用相对文件名（T013；核实 2026-11-10，`where.exe` 顺序仍是 Git 在前）
 - 本机 git 没有全局 `user.name` / `user.email`。新仓库首次提交会失败，用一次性的 `git -c user.name=… -c user.email=… commit`，不要写进配置（T009；核实 2026-11-10）
 - Edge 无头的 `--window-size` 最小约 500 px，390 宽截图会被裁、看起来内容偏右，这不是页面 bug。测手机宽度用 Playwright viewport 或 CDP `Emulation.setDeviceMetricsOverride`（T011、T012；核实 2026-11-09）
