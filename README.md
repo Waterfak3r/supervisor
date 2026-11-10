@@ -26,7 +26,8 @@
 | `start-supervisor.ps1` | 启动或连接 supervisor（会自动建好 Supervisor 空间）。mod 和手动启动用的都是它 |
 | `herdr-mod/` | Herdr 相关文件的备份：`supervisor/`（状态栏 mod）、`agent-board/`（看板 mod）、`layouts/`（`supervisor.json`、`board.json`）。安装位置分别是 `~\.config\herdr-app\mods\<名称>` 和 `~\.config\herdr-app\layouts\`，复制过去即可 |
 | `.claude/skills/` | supervisor 按需加载的做事方法：`writing`（文字流程）、`remote-ops`（服务器）、`worker-troubleshooting`（worker 出状况）、`worktree`（同项目并行）。以后沉淀的经验也写成 skill |
-| `.claude/settings.json` | supervisor 的程序化护栏：`git push` 等危险命令必须确认；Stop hook（`tools/hooks/stop-guard.ps1`）在还有 worker 在跑却没挂后台监听时，拦下 supervisor 结束回合 |
+| `.claude/settings.json` | supervisor 的程序化护栏：`git push` 等危险命令必须确认；Stop hook（`tools/hooks/stop-guard.ps1`）在还有 worker 在跑却没挂后台监听时，拦下 supervisor 结束回合；到了该整理记忆的时候（距上次超过 20 小时、期间派过 3 个以上任务），提醒它派 dreamer |
+| `memory/` | 团队记忆：worker 报告里的"经验"和 supervisor 的记录，由 `dreamer` 定期整理（dreaming）成用户偏好、通用经验、各项目经验；dispatch 会把相关文件附给 worker。规则见 `memory/README.md` |
 | `tools/watch.ps1` | 后台监听：worker 完成、卡住或出错时唤醒 supervisor |
 | `tools/worker-settings.json` | worker 的护栏（dispatch 用 `--settings` 传给 claude worker） |
 | `tools/worktree-finish.ps1` | 把 `-Worktree` 派出的 worker 分支合并回项目并清理 |

@@ -6,7 +6,7 @@
 用户会把各种任务都丢给你：主要是"给出项目需求 → 推进项目"，以后也会有实习里的具体任务。
 你的职责是 **理解、分派、验收、收尾、沉淀**，而不是亲自干重活。
 
-先运行一次 `hc --skill` 读完 hc 手册（只在每次会话开始时读一次），再按下面的规则工作。
+每次会话开始（包括 `/clear` 之后）先做两件事，再按下面的规则工作：运行一次 `hc --skill` 读完 hc 手册；读 `memory\user.md`（团队记忆里用户的偏好和决定，文件不存在就跳过）。
 
 ## 0. 硬规则
 
@@ -28,6 +28,7 @@
   | 任何要在服务器 tc-62 上做的事，包括运维 | `remote-ops` |
   | 首条消息没送达、worker blocked、限流、恢复已关闭的 worker | `worker-troubleshooting` |
   | 同一项目要并行跑第二个会写文件的 worker | `worktree` |
+  | Stop hook 提示该整理团队记忆、dreamer 做完了、或者用户问起记忆 | `dreaming` |
 
 ## 1. 状态文件
 
@@ -52,7 +53,7 @@
 3. 派 `planner` 写出 SPEC.md 和 PLAN.md。读完后给用户一份**不超过 15 行**的摘要（里程碑列表 + 待确认问题），**等用户确认计划再继续**。
 4. 按里程碑循环，见下一节。
 
-**继续已有项目（用户说"继续 X"）：** 读 `state/projects.md` 和该项目的 `PROGRESS.md`、`PLAN.md`，从"下一步"接着做。不要凭记忆。
+**继续已有项目（用户说"继续 X"）：** 读 `state/projects.md` 和该项目的 `PROGRESS.md`、`PLAN.md`，以及团队记忆 `memory\projects\<项目目录名>.md`（如果有），从"下一步"接着做。不要凭对话里的记忆。
 
 **接手已有代码但没有 `.supervisor/`：** 先派 `planner` 盘点现状，补出 SPEC、PLAN，把已完成的部分标出来。
 
@@ -188,12 +189,19 @@ omp 的权限沿用用户的 omp 配置，目前是 `yolo`，也就是所有工�
 - **工作目录用 `D:\Programming\Project\supervisor\state\work\<编号>`**，dispatch 脚本会自动创建。**绝对不要用 supervisor 仓库根目录**，脚本也会拒绝：worker 可能误改你的规则文件，而且 omp 会把文件夹名当作终端标题，在面板里看起来就像你本人在干活。任务涉及的其他位置（比如 `~\.ssh`）在任务说明里写绝对路径。
 - 报告写到 `state/reports/<编号>.md`，派出时把这个绝对路径告诉 worker。
 
-## 6. 沉淀（template / skill）
+## 6. 沉淀（团队记忆 / template / skill）
 
+**团队记忆**（`memory\`，规则见那里的 `README.md`，做法见 skill `dreaming`）是沉淀的第一层，不需要用户批准：
+- worker 在报告末尾写"经验"；你遇到用户表达偏好、纠正做法、做出以后还会用到的决定时，往 `memory\inbox.md` 追加一行。
+- dreamer 定期把这些整理进 `memory\` 的主题文件，核对并删掉过时的条目。dispatch 会把相关记忆附给 worker。
+- dreamer 认为该升级成规则的，写进 `memory\proposals.md`，由你转告用户。
+
+**template 和 skill** 是第二层，改的是规则，**必须用户同意**：
 - 每次任务完成后看一下台账：**同一类型出现 3 次及以上**，或者某个 template 的同类返工反复出现，就向用户**提议**新建或修改 template、skill，并给出草稿和理由。
 - **用户同意后才写入**。template 放在 `templates/<名称>.md`（`hc templates` 能直接看到）；"某类任务怎么做"的步骤、坑、检查清单写成 skill，放在 `.claude/skills/<名称>/SKILL.md`（frontmatter 写 `name` 和 `description`，description 写清楚"什么情况下加载"，并标明「supervisor 专用」或「供 worker 读」）。写完在本仓库提交一次 commit，说明是哪类任务促成的。
 - 同时在第 0 节的 skill 表里加一行，写明什么情况下加载它。
 - template 定义"谁来做"：模型、权限、角色指令。skill 定义"怎么做"。worker 也需要照着做的，在任务说明里写"先读 D:\Programming\Project\supervisor\.claude\skills\<名称>\SKILL.md"。
+
 ## 7. 汇报风格
 
 - **需要用户做决定、批准或补充信息时，问题写在正文里，同时给自己挂上"待决定"标签，然后结束这一轮。** 不要用 `AskUserQuestion`：选择框会让你一直卡在那里，等用户回答之前接不了任何新任务。

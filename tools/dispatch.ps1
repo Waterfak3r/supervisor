@@ -188,6 +188,27 @@ if ($Worktree) {
     $cwdFull = $wtPath
 }
 
+# ---- 团队记忆：把相关的记忆文件附在任务说明末尾，让 worker 开工前先读 ----
+# general.md（跨项目的环境和工具经验），以及 D:\Programming\Project\<项目>\ 下干活时的 projects\<项目>.md。
+# dreamer 自己就在整理记忆，不附。
+if ($Command -ne 'dreamer') {
+    $memDir = Join-Path $root 'memory'
+    $memFiles = @()
+    $gen = Join-Path $memDir 'general.md'
+    if (Test-Path $gen) { $memFiles += $gen }
+    $projBase = 'D:\Programming\Project\'
+    if ($cwdFull.StartsWith($projBase, [StringComparison]::OrdinalIgnoreCase)) {
+        $proj = ($cwdFull.Substring($projBase.Length) -split '\\')[0]
+        if ($proj -and $proj -ine 'supervisor') {
+            $pm = Join-Path $memDir "projects\$proj.md"
+            if (Test-Path $pm) { $memFiles += $pm }
+        }
+    }
+    if ($memFiles.Count -gt 0) {
+        $Task += "`n`n开工前先读团队记忆（以前在这里干活的人留下的坑和约定，和任务说明冲突时以任务说明为准）：" + ($memFiles -join '、')
+    }
+}
+
 # ---- 组装启动命令 ----
 $templateFile = Join-Path $templateDir "$Command.md"
 $launchName = $Command      # 交给 hc run 的 template 名或程序名

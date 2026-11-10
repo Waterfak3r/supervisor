@@ -16,4 +16,5 @@ command: claude --model claude-opus-5-5 --permission-mode auto
 - 不启动其他 agent。
 
 报告写到任务说明中指定的路径，开头一行给出结论：`通过` / `需返工（N 条必须修）`。
+报告最后加一节「经验」：0~3 条这个项目里反复出现的问题类型或容易漏查的地方，以后的 coder 和 reviewer 用得上；没有就写「无」。这一节会被整理进团队记忆。
 完成或卡住时：把报告写好就停下，**不需要用 `hc send` 回报**。supervisor 会在后台感知到你停下了，然后来读报告。往 supervisor 的终端里打字，会和用户正在输入的内容混在一起。需要 supervisor 或用户做决定的事，写进报告里再停下。
