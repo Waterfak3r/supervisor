@@ -162,7 +162,7 @@ omp 的权限沿用用户的 omp 配置，目前是 `yolo`，也就是所有工�
 
 - **用备选的情况**：首选不可用（报错、限流、Claude 额度用完），或者任务有破坏风险而首选是 omp 模型。Claude 额度用完时，第 4 档临时用 `google-antigravity/gemini-3.8-flash` / `high` 顶上，并告诉用户。
 - **限流**：worker 屏幕上出现 rate limit、Too many requests 或 Retrying 字样，说明被限流了。不要干等，关掉它、换备选模型重新派活，并记进 `state/routing-notes.md`（见 skill `worker-troubleshooting`）。
-- **角色下限**：`planner` 至少第 4 档。`reviewer` 不低于它审查的那次 coder 的档位，第 2、3 档的审查统一用 `high` effort。
+- **角色下限**：`planner` 至少第 4 档，复杂杂项任务的"出方案"同样用 `opus` / `high`（见第 5 节）。`reviewer` 不低于它审查的那次 coder 的档位，第 2、3 档的审查统一用 `high` effort。
 - **交叉审查**：reviewer 尽量用和 coder **不同厂商**的模型，例如 coder 用 sonnet，reviewer 就用 `google-antigravity/gemini-3.8-flash` / `high`；反过来也一样。不同厂商的模型盲点不同，交叉审查更容易发现问题。第 4、5 档的审查仍然用 opus。
 - **怎么判断**：看三件事——要改动或产出的范围有多大、需求是否明确、出错的代价有多高。拿不准就选高一档。在任务说明末尾写一句选档理由，例如"选档：3（跨 4 个文件，模式明确）"。
 - **升档**：worker 回报卡住，或者 reviewer 两轮后仍有必须修的问题，就**新开一个高一档的 worker**，把之前的报告路径交给它接着做。不要在原会话里切换模型。同一个任务最多升到第 5 档；第 5 档也失败了就停下来找用户。
@@ -188,6 +188,17 @@ omp 的权限沿用用户的 omp 配置，目前是 `yolo`，也就是所有工�
 - **template 默认用 `helper`**（通用执行者），同样按 4.5 节选档。不要用 `-Command claude` 直接启动：那样选档不生效，任务文本还要经过 cmd.exe 转义，容易出问题。
 - **工作目录用 `D:\Programming\Project\supervisor\state\work\<编号>`**，dispatch 脚本会自动创建。**绝对不要用 supervisor 仓库根目录**，脚本也会拒绝：worker 可能误改你的规则文件，而且 omp 会把文件夹名当作终端标题，在面板里看起来就像你本人在干活。任务涉及的其他位置（比如 `~\.ssh`）在任务说明里写绝对路径。
 - 报告写到 `state/reports/<编号>.md`，派出时把这个绝对路径告诉 worker。
+
+**复杂的杂项任务：先出方案，用户确认后再执行。** 项目有 planner，杂项任务没有；为了不让复杂任务的拆解全靠你当场写的一段任务说明，按下面做：
+
+- **什么算复杂**：按 4.5 节判断为第 4 档及以上；或者你预计要拆成 2 个以上的 worker 任务；或者需求不清、牵涉多个系统、出错代价高（比如动服务器、动用户的重要文件、对外发出的材料）。拿不准就算复杂。
+- **第 1 步，出方案**：派 `helper`，`opus` / `high`，只调研、不动手：
+  ```powershell
+  & D:\Programming\Project\supervisor\tools\dispatch.ps1 -Name misc-plan-<编号> -Cwd D:\Programming\Project\supervisor\state\work\<编号> -Command helper -Model opus -Effort high -Task '<编号> 出方案，不执行。用户的原话：「……」。可以读文件、跑只读命令了解现状，不要做任何修改。方案写到 PLAN.md（当前目录）：1) 目标和你对需求的理解，含你做的假设；2) 拆成几个子任务，每个写清范围、允许动什么、验收标准、建议的角色和档位、依赖关系；3) 风险和回退办法；4) 需要用户决定的问题，列选项和你的推荐。报告写到 D:\Programming\Project\supervisor\state\reports\<编号>.md，只写结论和 PLAN.md 的路径。'
+  ```
+- **第 2 步，给用户确认**：读 PLAN.md，给用户一份**不超过 10 行**的摘要（子任务列表、要用户决定的事），挂 `sv.ask` 标签，结束这一轮。
+- **第 3 步，执行**：用户确认后，按方案逐个派子任务。台账里每个子任务单独一行，编号照常递增，类型后面注明"方案 <编号>"。验收时对照 PLAN.md 里的验收标准。
+- **例外**：用户说"直接做""别问了"，或者事情紧急，就跳过方案这一步。方案出来后如果发现其实很简单（一个子任务、没有要决定的事），告诉用户一声就直接执行，不必等确认。
 
 ## 6. 沉淀（团队记忆 / template / skill）
 
