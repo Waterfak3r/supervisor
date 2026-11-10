@@ -5,6 +5,7 @@
 import { View, div } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { terminals, theme, run, exec, shared, setShared, notify, playSound } from "herdr";
+import { checkAttention, highlightOn, loadHighlightSetting, setHighlight } from "./attention.js";
 
 const ROOT = "D:\\Programming\\Project\\supervisor";
 const SCRIPT = ROOT + "\\start-supervisor.ps1";
@@ -26,6 +27,32 @@ export default class Supervisor extends View {
     cx.timer.after(2500, (cx) => {
       if (!this.running()) this.start(cx);
     });
+    // 任务栏提醒开关存在 settings.json，定时重读，手改文件也会生效
+    cx.spawn(async () => loadHighlightSetting());
+    cx.timer.every(10000, (cx) => cx.spawn(async () => loadHighlightSetting()));
+  }
+
+  // 状态栏最右侧的"任务栏提醒"开关，样式同 Herdr 设置页的开关
+  highlightToggle(t) {
+    const on = highlightOn();
+    return h_flex()
+      .id("sv-taskbar-toggle")
+      .gap(6)
+      .items_center()
+      .px(6)
+      .rounded(4)
+      .cursor_pointer()
+      .hover((s) => s.bg(t.hover))
+      .on_click((_e, cx) => cx.spawn(async () => setHighlight(!on)))
+      .child(div().child("任务栏提醒"))
+      .child(
+        div().w(26).h(14).rounded(7).p(2).flex().bg(on ? t.accent : t.hover).when(on, (el) => el.justify_end())
+          .child(div().w(10).h(10).rounded(5).bg(on ? t.accent_foreground : t.muted)),
+      );
+  }
+
+  render(cx) {
+    return this.content(cx).child(div().flex_1()).child(this.highlightToggle(theme()));
   }
 
   supervisor() {
@@ -71,7 +98,9 @@ export default class Supervisor extends View {
       .child(label);
   }
 
-  render(cx) {
+  content(cx) {
+    // 有事等你时让任务栏按钮常亮（见 attention.js）
+    checkAttention(this.supervisor(), cx);
     const t = theme();
     const sup = this.running() ? this.supervisor() : null;
     const workers = sup ? terminals().filter((w) => live(w) && w.parent === sup.address) : [];

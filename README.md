@@ -24,7 +24,7 @@
 | `templates/` | worker 角色（planner / coder / reviewer）。已通过目录链接挂到 `%APPDATA%\herdr-core\templates`，这是 Windows 上 hc 读取 template 的位置 |
 | `tools/dispatch.ps1` | 派活脚本：启动 worker，并把它放进 Herdr 的 Supervisor 空间 |
 | `start-supervisor.ps1` | 启动或连接 supervisor（会自动建好 Supervisor 空间）。mod 和手动启动用的都是它 |
-| `herdr-mod/` | Herdr 相关文件的备份：`supervisor/`（状态栏 mod）、`agent-board/`（看板 mod）、`layouts/`（`supervisor.json`、`board.json`）。安装位置分别是 `~\.config\herdr-app\mods\<名称>` 和 `~\.config\herdr-app\layouts\`，复制过去即可 |
+| `herdr-mod/` | Herdr 相关文件的备份：`supervisor/`（状态栏 mod；其中 `attention.js` + `taskbar-flash.cs` 负责有事等你时让任务栏按钮常亮，exe 首次使用时自动编译到 `%LOCALAPPDATA%\herdr-taskbar-flash\`）、`agent-board/`（看板 mod）、`layouts/`（`supervisor.json`、`board.json`）、`app/`（`settings.json`（含 `taskbar_highlight` 开关）、`programs.json`、`my-icons/`）、`herdr-tui/config.toml`（旧版 herdr 终端版配置）。安装位置分别是 `~\.config\herdr-app\mods\<名称>`、`~\.config\herdr-app\layouts\`、`~\.config\herdr-app\`、`%APPDATA%\herdr\`，复制过去即可 |
 | `.claude/skills/` | supervisor 按需加载的做事方法：`writing`（文字流程）、`remote-ops`（服务器）、`worker-troubleshooting`（worker 出状况）、`worktree`（同项目并行）。以后沉淀的经验也写成 skill |
 | `.claude/settings.json` | supervisor 的程序化护栏：`git push` 等危险命令必须确认；Stop hook（`tools/hooks/stop-guard.ps1`）在还有 worker 在跑却没挂后台监听时，拦下 supervisor 结束回合；到了该整理记忆的时候（距上次超过 20 小时、期间派过 3 个以上任务），提醒它派 dreamer |
 | `memory/` | 团队记忆：worker 报告里的"经验"和 supervisor 的记录，由 `dreamer` 定期整理（dreaming）成用户偏好、通用经验、各项目经验；dispatch 会把相关文件附给 worker。规则见 `memory/README.md` |
