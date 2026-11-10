@@ -17,11 +17,31 @@ param(
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $workersDir = Join-Path $root 'state\workers'
 
+# 只允许一个监听：进程号记在 state\watch.pid。supervisor 的 Stop hook（tools\hooks\stop-guard.ps1）
+# 也靠这个文件判断"后台有没有监听在跑"。
+$pidFile = Join-Path $root 'state\watch.pid'
+function Get-LiveWatcherPid {
+    if (-not (Test-Path $pidFile)) { return $null }
+    $p = 0
+    if (-not [int]::TryParse(((Get-Content $pidFile -Raw -ErrorAction SilentlyContinue) -as [string]).Trim(), [ref]$p)) { return $null }
+    $proc = Get-Process -Id $p -ErrorAction SilentlyContinue
+    if ($proc -and $proc.ProcessName -match '^(powershell|pwsh)$') { return $p }
+    return $null
+}
+$other = Get-LiveWatcherPid
+if ($other -and $other -ne $PID) {
+    "已经有一个监听在后台运行（PID $other），不需要再开。它会把新派的 worker 一起盯着。"
+    exit 0
+}
+New-Item -ItemType Directory -Force (Split-Path $pidFile) | Out-Null
+Set-Content $pidFile $PID -Encoding ascii
+
 function Get-Watched {
     $list = @()
     if (-not (Test-Path $workersDir)) { return $list }
     foreach ($f in Get-ChildItem $workersDir -Filter '*.json') {
         try { $m = Get-Content $f.FullName -Raw -Encoding utf8 | ConvertFrom-Json } catch { continue }
+        if ($m.detached) { continue }   # -Detached 派出的测试 worker 不归 supervisor 管
         # 远程 worker 用地址查（名字只在它那台机器上唯一），本机用名字
         $target = if ($m.machine -and $m.address) { $m.address } else { $m.name }
         $t = $null
@@ -40,6 +60,7 @@ function Show($list) {
     }
 }
 
+try {
 # 基线 = supervisor 上一次从 watch.ps1 看到的状态（存在 state\watch-seen.json），而不是"本次启动时的状态"。
 # 否则会漏掉这种情况：上一个 watch 结束后，supervisor 处理别的事花了几十秒，某个 worker 恰好在这期间完成；
 # 新 watch 启动时它已经是 done，按"启动时已是 done 不算"就永远不会报（2026-11-10 T025 就是这样漏掉的）。
@@ -123,3 +144,7 @@ $now = Get-Watched
 Show $now
 "如果还有 worker 在 working，就再在后台启动一次 watch.ps1。"
 Save-Seen $now
+} finally {
+    # 只删自己写的 pid
+    if ((Get-Content $pidFile -Raw -ErrorAction SilentlyContinue) -match "^\s*$PID\s*$") { Remove-Item $pidFile -ErrorAction SilentlyContinue }
+}

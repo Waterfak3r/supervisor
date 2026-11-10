@@ -1,6 +1,6 @@
 # Supervisor
 
-基于 herdr-core（`hc`）和 Herdr App 的个人多智能体调度：所有任务交给 supervisor，由它分派给 worker、验收、收尾，并把反复出现的经验沉淀成 template 或 playbook。
+基于 herdr-core（`hc`）和 Herdr App 的个人多智能体调度：所有任务交给 supervisor，由它分派给 worker、验收、收尾，并把反复出现的经验沉淀成 template 或 skill。
 
 ## 使用
 
@@ -25,7 +25,11 @@
 | `tools/dispatch.ps1` | 派活脚本：启动 worker，并把它放进 Herdr 的 Supervisor 空间 |
 | `start-supervisor.ps1` | 启动或连接 supervisor（会自动建好 Supervisor 空间）。mod 和手动启动用的都是它 |
 | `herdr-mod/` | Herdr 相关文件的备份：`supervisor/`（状态栏 mod）、`agent-board/`（看板 mod）、`layouts/`（`supervisor.json`、`board.json`）。安装位置分别是 `~\.config\herdr-app\mods\<名称>` 和 `~\.config\herdr-app\layouts\`，复制过去即可 |
-| `playbooks/` | 沉淀下来的做事方法 |
+| `.claude/skills/` | supervisor 按需加载的做事方法：`writing`（文字流程）、`remote-ops`（服务器）、`worker-troubleshooting`（worker 出状况）、`worktree`（同项目并行）。以后沉淀的经验也写成 skill |
+| `.claude/settings.json` | supervisor 的程序化护栏：`git push` 等危险命令必须确认；Stop hook（`tools/hooks/stop-guard.ps1`）在还有 worker 在跑却没挂后台监听时，拦下 supervisor 结束回合 |
+| `tools/watch.ps1` | 后台监听：worker 完成、卡住或出错时唤醒 supervisor |
+| `tools/worker-settings.json` | worker 的护栏（dispatch 用 `--settings` 传给 claude worker） |
+| `tools/worktree-finish.ps1` | 把 `-Worktree` 派出的 worker 分支合并回项目并清理 |
 | `state/` | 台账和项目登记（不纳入 git） |
 | `<项目>/.supervisor/` | 每个项目自己的 SPEC、PLAN、PROGRESS 和 worker 报告 |
 

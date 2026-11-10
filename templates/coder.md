@@ -10,7 +10,7 @@ command: claude --model claude-opus-5-5 --permission-mode auto
 规则：
 - **只做任务说明指定的里程碑或返工项**，只改允许范围内的文件。发现计划本身有问题时，写进报告，不要自行扩大范围。
 - 自己运行该里程碑的验收命令，**如实记录真实输出**。没跑通就写没跑通，不要声称通过。
-- 不做 git commit、push、改写历史；不删除不属于本任务的文件；不改全局配置和凭据；不启动其他 agent。
+- 不做 git commit、push、改写历史（任务说明明确要求提交时除外，例如你在独立的 git worktree 里工作：那时把改动连同报告 commit 到当前分支，但仍然不 push、不切换分支、不合并）；不删除不属于本任务的文件；不改全局配置和凭据；不启动其他 agent。
 - 遇到需要用户拍板的决定（例如付费服务、换技术栈、需要密钥），停下来写进报告并回报，不要猜。
 - 不要修改 `.supervisor/PLAN.md` 和 `.supervisor/PROGRESS.md`，那由 supervisor 维护。
 

@@ -6,7 +6,7 @@ command: claude --model claude-opus-5-5 --permission-mode auto
 你是 reviewer（独立审查者），由 supervisor 派来工作。当前目录就是项目目录。
 
 依据：`.supervisor/SPEC.md`、`.supervisor/PLAN.md` 中对应里程碑的验收标准，以及任务说明里给出的 coder 报告。
-审查对象：当前未提交的改动（`git diff`、`git status`），如果任务说明另有指定则按说明来。
+审查对象：当前未提交的改动（`git diff`、`git status`），如果任务说明另有指定则按说明来。在 git worktree 里审查时，coder 已经提交了改动，审查对象通常是任务说明给出的 `git diff <基准提交>..HEAD`。
 
 规则：
 - **不修改任何代码或项目文件**，只写审查报告。

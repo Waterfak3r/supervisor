@@ -6,6 +6,10 @@
 # -Model / -Effort：模型和思考强度。带 provider/ 前缀的模型（如 xai-oauth/grok-4.7）用 omp 启动，
 #   其余（haiku/sonnet/opus）用 claude。不填就用 template 自己写的设置。
 # -Detached：不把调用方当作父终端，也不往父终端发通知（测试或手动派活时用）。
+# -Worktree：让 worker 在自己的 git worktree 里干活，同一个项目可以同时跑几个会写文件的 worker。
+#   -Cwd 填项目根目录；脚本在 <项目>\.worktrees\<Name> 新建分支 sv/<Name>（从项目当前分支的 HEAD 开出），
+#   worker 的工作目录就是这个 worktree。验收后用 tools\worktree-finish.ps1 -Name <Name> 合并并清理。
+#   worktree 里只有 git 跟踪的文件：依赖（node_modules、venv）和生成物要 worker 自己装、自己生成。只支持本机。
 #
 # 每个 worker 的会话都会被固定下来（claude 用 --session-id，omp 用独立的 --session-dir），
 # 元数据写在 state\workers\<Name>.json。worker 关掉之后，可以用 tools\resume.ps1 -Name <Name> 恢复原会话。
@@ -18,6 +22,7 @@ param(
     [string]$Model,
     [ValidateSet('low', 'medium', 'high', 'xhigh', 'max')][string]$Effort,
     [switch]$Detached,
+    [switch]$Worktree,
     [string]$Machine
 )
 
@@ -39,6 +44,7 @@ $utf8 = New-Object Text.UTF8Encoding $false
 #  - worker 必须由 supervisor 终端直接派出（parent 是 supervisor），服务器上的 worker 只能回报给它的 parent。
 if ($Machine) {
     function Stop-Remote([string]$msg, [int]$code = 2) { Write-Error $msg; exit $code }
+    if ($Worktree) { Stop-Remote "-Worktree 只支持本机项目" }
 
     $rp = Get-RemoteProfile $Machine
     if (-not $rp) { Stop-Remote "未登记的机器：$Machine。已登记：$(($script:RemoteProfiles.Keys) -join ', ')（在 tools\common.ps1 的 RemoteProfiles 里加）" }
@@ -147,11 +153,49 @@ if ($cwdFull.TrimEnd('\') -ieq $root.TrimEnd('\')) {
     exit 2
 }
 
+# ---- worktree：在 <项目>\.worktrees\<Name> 开一个独立的工作区和分支 ----
+$wtInfo = $null
+if ($Worktree) {
+    if ($Name -notmatch '^[A-Za-z0-9_-]+$') { Write-Error "-Worktree 时 -Name 只能含字母数字 - _：$Name"; exit 2 }
+    $repo = (& git -C $cwdFull rev-parse --show-toplevel 2>$null | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0 -or -not $repo) { Write-Error "-Worktree 要求 -Cwd 是一个 git 仓库：$cwdFull"; exit 2 }
+    $repo = [IO.Path]::GetFullPath($repo)
+    if ($repo.TrimEnd('\') -ine $cwdFull.TrimEnd('\')) { Write-Error "-Worktree 时 -Cwd 请填项目根目录 $repo，不要填子目录"; exit 2 }
+    $baseBranch = (& git -C $repo branch --show-current 2>$null | Out-String).Trim()
+    if (-not $baseBranch) { Write-Error "项目当前不在任何分支上（detached HEAD），不能开 worktree：$repo"; exit 2 }
+    $wtPath = Join-Path $repo ".worktrees\$Name"
+    $branch = "sv/$Name"
+    if (Test-Path $wtPath) { Write-Error "worktree 目录已存在：$wtPath"; exit 2 }
+    & git -C $repo show-ref --verify --quiet "refs/heads/$branch"
+    if ($LASTEXITCODE -eq 0) { Write-Error "分支已存在：$branch"; exit 2 }
+
+    # .worktrees 不进版本库：写进 .git/info/exclude（本地文件，不改项目里被跟踪的 .gitignore）
+    $common = (& git -C $repo rev-parse --git-common-dir 2>$null | Out-String).Trim()
+    if (-not [IO.Path]::IsPathRooted($common)) { $common = Join-Path $repo $common }
+    $exclude = Join-Path $common 'info\exclude'
+    New-Item -ItemType Directory -Force (Split-Path $exclude) | Out-Null
+    if (-not ((Test-Path $exclude) -and (Select-String -Path $exclude -SimpleMatch '/.worktrees/' -Quiet))) {
+        Add-Content $exclude "`n/.worktrees/" -Encoding ascii
+    }
+
+    $dirty = (& git -C $repo status --porcelain 2>$null | Out-String).Trim()
+    $wtOut = & git -C $repo worktree add -b $branch $wtPath HEAD 2>&1 | ForEach-Object { "$_" }
+    if ($LASTEXITCODE -ne 0) { Write-Error "git worktree add 失败：$($wtOut -join ' ')"; exit 2 }
+    $head = (& git -C $wtPath rev-parse --short HEAD 2>$null | Out-String).Trim()
+    Write-Host "# worktree：$wtPath（分支 $branch，从 $baseBranch@$head 开出）"
+    if ($dirty) { Write-Host "# 注意：项目主目录有未提交的改动，worktree 里看不到它们（只包含已提交的内容）" }
+    $wtInfo = [ordered]@{ repo = $repo; path = $wtPath; branch = $branch; base = $baseBranch; base_commit = $head }
+    $cwdFull = $wtPath
+}
+
 # ---- 组装启动命令 ----
 $templateFile = Join-Path $templateDir "$Command.md"
 $launchName = $Command      # 交给 hc run 的 template 名或程序名
 $oneShot = $null            # 一次性 template 文件，启动后删除
 $meta = [ordered]@{ name = $Name; cwd = $cwdFull; role = $Command; model = $Model; effort = $Effort; launcher = $null; argv = $null; session = $null; created = (Get-Date).ToString('s') }
+if ($wtInfo) { $meta.worktree = $wtInfo }
+# -Detached 的 worker（测试、手动派活）不归 supervisor 管：watch.ps1 和 Stop hook 都会跳过它
+if ($Detached) { $meta.detached = $true }
 
 if (Test-Path $templateFile) {
     $text = [IO.File]::ReadAllText($templateFile)
@@ -162,9 +206,12 @@ if (Test-Path $templateFile) {
     $argv = $null
     if ($launcher -eq 'claude') {
         if ($baseArgv[0] -ne 'claude') { $baseArgv = @('claude', '--permission-mode', 'auto') }
-        $argv = Remove-Flags $baseArgv @('--model', '--effort', '--session-id')
+        $argv = Remove-Flags $baseArgv @('--model', '--effort', '--session-id', '--settings')
         if ($Model) { $argv += @('--model', $Model) }
         if ($Effort) { $argv += @('--effort', $Effort) }
+        # worker 的权限护栏：git push、reset --hard、clean 等改写历史或推到远端的操作一律弹确认（auto 模式下也会弹），
+        # worker 因此变成 blocked，watch.ps1 会叫醒 supervisor 转告用户。
+        $argv += @('--settings', ((Join-Path $PSScriptRoot 'worker-settings.json') -replace '\\', '/'))
         $sid = [guid]::NewGuid().ToString()
         $argv += @('--session-id', $sid)
         $meta.session = $sid
