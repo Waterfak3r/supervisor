@@ -97,7 +97,10 @@ if ($Machine) {
     $hcArgs = @('run', '--bg', '--json', '--on', $Machine, '--name', $Name, '--cwd', $Cwd)
     # 一律 --no-notify：hc 不往 supervisor 的终端里打字（会和用户正在输入的内容混在一起），由 tools\watch.ps1 在后台监听
     $hcArgs += @('--no-notify')
-    if ($Detached) { $hcArgs += @('--no-parent') }
+    # 远程 worker 不设 parent：--parent 会在服务器上解析（找不到本机的 supervisor 终端），
+    # 而不去掉 HC_TERMINAL_ID 又会让首条消息带上"做完用 hc send 回报"。没有 parent 的影响只是 supervisor 退出时它不会跟着结束；
+    # 监听靠 state\workers 里的元数据，面板显示靠 tc-62 的 Supervisor 空间，都不依赖 parent。
+    $hcArgs += @('--no-parent')
     $hcArgs += @('--label', "sv.role=$Command", '--label', "sv.model=$Model", '--label', "sv.machine=$Machine")
     if ($Effort) { $hcArgs += @('--label', "sv.effort=$Effort") }
     $rspace = Get-RemoteSupervisorSpace $Machine $rp.Home
@@ -107,7 +110,8 @@ if ($Machine) {
     $out = $null; $code = 1
     try {
         [void](Write-RemoteFile $Machine $remoteTpl $tplText)
-        $out = & hc @hcArgs | Out-String
+        # 不让 hc 在首条消息里加"做完用 hc send 回报父终端"，见 common.ps1 的 Invoke-HcAnonymous
+        $out = Invoke-HcAnonymous $hcArgs
         $code = $LASTEXITCODE
     } finally {
         # hc run 返回时首条消息已经发出（或已确定没发出），一次性 template 不再需要；只删自己写的这个文件
@@ -120,19 +124,10 @@ if ($Machine) {
     if ($rspace) { Rename-WorkerTab $rspace "$($res.address)" $Name $Machine }
     New-Item -ItemType Directory -Force $workersDir | Out-Null
     $rmeta = [ordered]@{ name = $Name; machine = $Machine; address = "$($res.address)"; cwd = $Cwd; role = $Command; model = $Model; effort = $Effort; launcher = 'omp'; argv = $argv; session = $sessionDir; created = (Get-Date).ToString('s'); note = 'resume.ps1 不支持远程 worker' }
+    if ($Detached) { $rmeta.detached = $true }
     [IO.File]::WriteAllText((Join-Path $workersDir "$Name.remote.json"), ($rmeta | ConvertTo-Json -Depth 4), $utf8)
 
-    # 提示：谁是 parent（服务器上的 worker 只能回报给它的 parent）
-    $parentInfo = ''
-    if ($res.parent) {
-        $pname = $null
-        try { $pname = ((& hc get $res.parent --json | Out-String | ConvertFrom-Json).name) } catch {}
-        $parentInfo = "parent=$($res.parent)$(if ($pname) { "（$pname）" })"
-        if ($pname -ne 'supervisor') { $parentInfo += '  注意：parent 不是 supervisor 终端，worker 的回报到不了 supervisor；请从 supervisor 终端直接派活，或自己用 hc wait / 报告文件验收' }
-    } else {
-        $parentInfo = 'parent=无  注意：没有 parent，worker 无法用 hc send 回报，也不会触发 hc wait --children；请用 hc wait ' + $res.address + ' 并读报告文件'
-    }
-    Write-Host "# 跨机 worker $($res.address)；$parentInfo"
+    Write-Host "# 跨机 worker $($res.address)（没有 parent，supervisor 退出时它不会跟着结束；完成后由 watch.ps1 发现，读报告验收）"
     Write-Host "# 服务器文件用 hc file read --on $Machine <路径>、hc exec --on $Machine -- <命令> 读取，本机的 Read/Grep 工具读不到。"
     exit 0
 }
@@ -267,8 +262,8 @@ if (Test-Path $templateFile) {
 $space = Get-SupervisorSpace
 $hcArgs = @('run', '--bg', '--json', '--name', $Name, '--cwd', $cwdFull)
 # 一律 --no-notify：hc 不往 supervisor 的终端里打字（会和用户正在输入的内容混在一起），由 tools\watch.ps1 在后台监听
-    $hcArgs += @('--no-notify')
-    if ($Detached) { $hcArgs += @('--no-parent') }
+$hcArgs += @('--no-notify')
+$hcArgs += Get-ParentArgs ([bool]$Detached)
 if ($space) { $hcArgs += @('--label', "herdr.space=$($space.id)") }
 $hcArgs += @('--label', "sv.role=$Command")
 if ($Model) { $hcArgs += @('--label', "sv.model=$Model") }
@@ -276,7 +271,8 @@ if ($Effort) { $hcArgs += @('--label', "sv.effort=$Effort") }
 $hcArgs += @($launchName, $Task)
 
 try {
-    $out = & hc @hcArgs | Out-String
+    # 不让 hc 在首条消息里加"做完用 hc send 回报父终端"，见 common.ps1 的 Invoke-HcAnonymous
+    $out = Invoke-HcAnonymous $hcArgs
     $code = $LASTEXITCODE
 } finally {
     # hc run 返回时首条消息已经发出（或已确定没发出），一次性 template 不再需要

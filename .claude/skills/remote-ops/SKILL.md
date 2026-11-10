@@ -17,7 +17,7 @@ description: supervisor 专用。把 worker 派到服务器 tc-62 的完整做�
 - **只能用 omp 类模型**（带 `provider/` 前缀）。服务器没有登录 Claude，传 `haiku/sonnet/opus` 会被脚本拒绝。所以服务器上没有 Claude 的安全分类器把关，见下面的护栏。
 - **服务器同时只允许 1 个 worker**（内存只有 3.6 GB，可用约 1 GB）。已有 live 的 worker 时脚本会拒绝（退出码 4）；验收完要 `hc kill <地址>; hc rm <地址>` 才能派下一个。服务器上的 `bash` 之类 shell 终端不计数。
 - `-Command` 只写本机 `templates\` 里已有的角色名。脚本每次派活时生成一次性的 `sv-<角色>--…` 变体，推到服务器，`hc run` 之后删除。常驻的 `sv-helper`、`sv-coder`、`sv-reviewer`、`sv-editor` 由 `tools\sync-templates.ps1 -Machine tc-62` 推送，只供手动使用；本机 template 改了之后重新同步一次。服务器上原有的 `reviewer`、`fixer`、`claude-reviewer` 不要动。
-- **由 supervisor 终端直接派**，这样它的父终端是你，方便管理。
+- 远程 worker **没有父终端**（hc 的 `--parent` 会在服务器上解析，指不到本机的你）。所以你退出时它不会跟着结束，收尾时一定要 `hc kill` 加 `hc rm`。完成与否靠后台监听 `watch.ps1` 和报告文件判断。
 - 远程 worker 显示在 Herdr 里 **tc-62 的 Supervisor 空间**中（脚本会自动建这个空间、打标签）。后台监听 `watch.ps1` 同样会盯着它。
 - 地址是 `tc-62/t7` 这样的完整形式，台账里一律记完整地址。元数据写在 `state\workers\<名字>.remote.json`。
 - **`resume.ps1` 不支持远程 worker。** 要追问就趁它还在时 `hc send tc-62/tN '…'`；关掉之后只能新开一个 worker，把报告路径交给它。

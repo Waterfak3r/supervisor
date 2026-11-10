@@ -129,3 +129,24 @@ function Write-RemoteFile([string]$machine, [string]$path, [string]$text) {
         Remove-Item $tmp -ErrorAction SilentlyContinue
     }
 }
+
+# ---- 启动 worker，但首条消息不带"做完用 hc send 回报"----
+# hc run 从某个终端里发起时（环境变量 HC_TERMINAL_ID 指向发起者），会把模板首条消息包成
+#   <hc from="t1f" reach="hc send t1f when done or stuck">…</hc>
+# 等于叫 worker 做完后往 supervisor 的终端里打字回报，会和用户正在输入的内容拼在一起；上下文一长，worker 可能更听它的而不是模板。
+# 办法（2026-11-10 实测）：发起 hc run 时临时去掉 HC_TERMINAL_ID，hc 就不知道是谁发的，首条消息不再包这一层；
+# 父终端改用 --parent 显式指定，parent 关系（状态栏、子终端随父终端结束）照旧。
+function Get-ParentArgs([bool]$detached) {
+    if ($detached) { return @('--no-parent') }
+    if ($env:HC_TERMINAL_ID) { return @('--parent', $env:HC_TERMINAL_ID) }
+    return @()
+}
+function Invoke-HcAnonymous([string[]]$hcArgs) {
+    $saved = $env:HC_TERMINAL_ID
+    try {
+        Remove-Item env:HC_TERMINAL_ID -ErrorAction SilentlyContinue
+        & hc @hcArgs | Out-String
+    } finally {
+        if ($saved) { $env:HC_TERMINAL_ID = $saved }
+    }
+}
