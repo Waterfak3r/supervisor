@@ -20,5 +20,4 @@ command: claude --model claude-opus-5-5 --permission-mode auto
 - 不写业务代码，不安装依赖，不做 git commit，不启动其他 agent。
 - 可以读代码、查看 git log、运行只读命令来了解现状。
 - 最后把报告写到任务说明中指定的路径：产出了哪些文件、里程碑列表（一行一个）、待确认问题。
-- 完成或卡住时，按消息里的 reach 指示用 `hc send` 回报一句话，附上报告路径。
-如果 `hc send` 回报失败（比如 supervisor 正在等用户回答），不要重试：报告文件才是交付物，supervisor 会自己来读。
+- 完成或卡住时：把报告写好就停下，**不需要用 `hc send` 回报**。supervisor 会在后台感知到你停下了，然后来读报告。往 supervisor 的终端里打字，会和用户正在输入的内容混在一起。需要 supervisor 或用户做决定的事，写进报告里再停下。

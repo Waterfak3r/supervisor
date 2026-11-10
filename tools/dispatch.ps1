@@ -89,7 +89,9 @@ if ($Machine) {
     $tplText = ConvertTo-RemoteTemplate ([IO.File]::ReadAllText($templateFile)) $launchName $argv
 
     $hcArgs = @('run', '--bg', '--json', '--on', $Machine, '--name', $Name, '--cwd', $Cwd)
-    if ($Detached) { $hcArgs += @('--no-parent', '--no-notify') }
+    # 一律 --no-notify：hc 不往 supervisor 的终端里打字（会和用户正在输入的内容混在一起），由 tools\watch.ps1 在后台监听
+    $hcArgs += @('--no-notify')
+    if ($Detached) { $hcArgs += @('--no-parent') }
     $hcArgs += @('--label', "sv.role=$Command", '--label', "sv.model=$Model", '--label', "sv.machine=$Machine")
     if ($Effort) { $hcArgs += @('--label', "sv.effort=$Effort") }
     $rspace = Get-RemoteSupervisorSpace $Machine $rp.Home
@@ -196,7 +198,9 @@ if (Test-Path $templateFile) {
 # ---- 启动 ----
 $space = Get-SupervisorSpace
 $hcArgs = @('run', '--bg', '--json', '--name', $Name, '--cwd', $cwdFull)
-if ($Detached) { $hcArgs += @('--no-parent', '--no-notify') }
+# 一律 --no-notify：hc 不往 supervisor 的终端里打字（会和用户正在输入的内容混在一起），由 tools\watch.ps1 在后台监听
+    $hcArgs += @('--no-notify')
+    if ($Detached) { $hcArgs += @('--no-parent') }
 if ($space) { $hcArgs += @('--label', "herdr.space=$($space.id)") }
 $hcArgs += @('--label', "sv.role=$Command")
 if ($Model) { $hcArgs += @('--label', "sv.model=$Model") }

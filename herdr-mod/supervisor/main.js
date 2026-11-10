@@ -4,7 +4,7 @@
 
 import { View, div } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { terminals, theme, run, exec, shared, setShared } from "herdr";
+import { terminals, theme, run, exec, shared, setShared, notify, playSound } from "herdr";
 
 const ROOT = "D:\\Programming\\Project\\supervisor";
 const SCRIPT = ROOT + "\\start-supervisor.ps1";
@@ -90,6 +90,22 @@ export default class Supervisor extends View {
 
     const s = sup.status ?? "idle";
     bar.child(this.item("sv-main", t, color(t, s), `Supervisor · ${WORD[s] ?? s}`, sup.address));
+
+    // supervisor 有问题要问用户时，会给自己挂上 sv.ask 标签（问题写在它的回复正文里，它本身保持空闲、随时接新任务）。
+    // 这里醒目地显示出来；第一次出现或内容变化时，响提示音并弹通知。
+    const ask = sup.labels?.["sv.ask"];
+    if (ask) {
+      if (shared("supervisor.ask.notified") !== ask) {
+        setShared("supervisor.ask.notified", ask);
+        playSound("blocked");
+        notify({ title: "Supervisor 有事待你决定", body: ask, level: "warning", action: { name: "agent.focus", args: { terminal: sup.address } } });
+      }
+      bar.child(
+        h_flex().id("sv-ask").gap(6).items_center().px(8).rounded(4).bg(t.blocked).text_color(t.solid_foreground).cursor_pointer()
+          .on_click(() => run("agent.focus", { terminal: sup.address }))
+          .child(`待你决定：${ask}`),
+      );
+    }
     if (workers.length === 0) {
       bar.child(div().text_color(t.dim).child("没有运行中的 worker"));
     } else {

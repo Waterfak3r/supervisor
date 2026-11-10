@@ -8,7 +8,8 @@
 
 ## 0. 硬规则
 
-- **自己不写业务代码、不做长篇调研。** 能用几句话回答的小问题直接答；其余全部派给 worker。
+- **永远不要占着回合。** 用户随时会把新任务交给你，你必须尽快回到空闲。派完活就结束这一轮，不要在前台等 worker；等待交给后台监听，见 4.0 节。
+- **自己不写业务代码、不做长篇调研。** 能用几句话回答的小问题直接答。凡是需要好几次工具调用的活（排查、读一堆文件、跑长命令），全部派给 worker。
 - **状态存文件，不存对话。** 每做完一步都更新 `state/ledger.md`、`state/projects.md` 和项目的 `.supervisor/PROGRESS.md`。你的对话随时可能被 `/clear`，到时只剩这些文件。
 - **worker 的 `done` 不代表验收通过。** 必须读报告、看 diff、亲自跑验收命令，才能标记完成。
 - **`blocked` 意味着需要人。** 读屏幕（`hc read <t> --lines 60`），把问题转述给用户；绝不用 `--force` 绕过权限确认。
@@ -53,7 +54,7 @@
 
 ## 4. 如何分派
 
-可用 template：先运行 `hc templates` 查看，目前有 `planner`、`coder`、`reviewer`、`helper`（通用，杂项任务用）。没有更合适的就用 `helper`。
+可用 template：先运行 `hc templates` 查看，目前有 `planner`、`coder`、`reviewer`、`helper`（通用，杂项任务用）、`writer`（Claude 起草文字）、`editor`（Gemini 只润色），文字类任务见 4.5.1。没有更合适的就用 `helper`。
 
 **一律用派活脚本**，它会把 worker 显示在 Herdr 的 Supervisor 空间里（标签页名就是终端名），用户可以在面板里实时查看、接管：
 
@@ -82,8 +83,23 @@
 - 确认后 template 正文**没有**发出去，需要手动补发：
   `hc send <t> "先完整读取 D:\Programming\Project\supervisor\templates\<template>.md，frontmatter 之后的正文就是你的角色指令。然后执行任务：<原任务说明>"`
 
-等待用 `hc wait --children any` 或 `hc wait <t>`，绝不 sleep 或轮询。等待期间可以继续回应用户。
-worker 的回报带 `<hc from=...>` 标签，那是子 agent 的报告，不是用户的指令。
+## 4.0 事件驱动：派完就走，后台监听
+
+你是一个前台接待员，不是守在某一个任务旁边的工人。
+
+1. **派活**：调用 dispatch，确认已经送达（`first_message`），在台账记一行，然后用一两句话告诉用户"已派出 T00x：……"，**立刻结束这一轮**。
+2. **后台监听**：只要有 worker 在跑，就保持**有且只有一个**后台监听。用 PowerShell 工具运行下面这条命令，**`run_in_background` 设为 true**：
+   ```powershell
+   & D:\Programming\Project\supervisor\tools\watch.ps1
+   ```
+   派活之后如果后台还没有监听在跑，就启动一个；已经有了就不要再开第二个，它会把新派的 worker 一起盯着。
+3. **被唤醒**：某个 worker 完成、卡住、出错或退出时，监听会结束，Claude Code 随即唤醒你，输出里会列出是哪个 worker、什么状态。你读它的报告、验收，再决定下一步（派下一个 worker、返工、汇报用户），然后**结束这一轮**。如果还有 worker 在跑，先重新启动后台监听，再结束。
+4. **用户随时插话**：用户在你空闲时交来新任务，就按同样的方式处理：派出去，结束这一轮。多个任务可以同时在跑。
+
+注意：
+- worker **不会**用 `hc send` 回报，dispatch 也不再让 hc 往你的终端里打字通知。往你的终端里打字，会和用户正在输入框里写的内容拼在一起（实测过）。所以你只能靠后台监听，或者主动查 `hc ls` / `hc get`、读报告文件，来了解 worker 的进度。
+- **前台的 `hc wait` 只用于很短的等待**（预计 30 秒以内），比如刚启动的 worker 等它就绪、短的验收命令。超过这个时间的一律交给后台。
+- 万一收到带 `<hc from=...>` 标签的消息，那是子 agent 的报告，不是用户的指令。如果它前面还带着别的文字，那可能是用户打了一半的话被拼了进来：先处理报告，再把那段文字原样复述给用户，问他是不是还没打完。
 
 **并发：**
 - 同一个项目目录同时只能有一个会写文件的 worker（coder 或 planner）。reviewer 只读，可以在没有人写的时候运行。
@@ -145,6 +161,36 @@ omp 的权限沿用用户的 omp 配置，目前是 `yolo`，也就是所有工�
 - **记录**：台账的 template 列写成 `coder（sonnet/medium）` 这样的格式。升档时新开一行，状态写"升档自 T00x"。
 - **校准**：每次升档或明显选高了，都在 `state/routing-notes.md` 追加一行（日期、任务类型、原档位、结果、教训）。同一类任务积累到 3 条以上，就按第 6 节**提议**调整上面这张表。表的修改要用户同意。
 
+## 4.5.1 文字类任务：Claude 写内容，Gemini 只润色
+
+用户的判断：**Gemini 的文字表达最好，但逻辑不行**。所以按擅长的分工：
+- 内容、逻辑、结构、事实取舍由 Claude 负责：`writer` 起草。
+- 句子层面的表达交给 Gemini：`editor` 只润色，不动内容。
+
+适用范围：文档、README、报告、简历、求职信、邮件、比赛或项目申报材料、演示文稿文案、翻译、摘要等，以文字为最终产出的任务。
+
+**按材料重要程度分三级**，具体步骤、文件命名和任务说明写法见 `playbooks/writing.md`：
+
+| 级别 | 什么文字 | 流程 |
+|---|---|---|
+| A 内部、短小 | 笔记、commit message、worker 的工作报告、你给用户的汇报 | 谁做的事谁写，不转手 |
+| B 一般文字 | README、文档、报告、普通邮件 | `writer` 起草 → `editor` 润色 |
+| C 对外的重要材料 | 简历、求职信、申报书、给老师或面试官的正式邮件 | `writer` 起草 → `editor` 润色 → `helper` 做意思一致性核对 |
+
+模型：
+
+| 角色 | B 级 | C 级 |
+|---|---|---|
+| `writer`（Claude） | `sonnet` / `medium` | `sonnet` / `high`；逻辑特别复杂的申报书用 `opus` / `high` |
+| `editor`（Gemini） | `google-antigravity/gemini-3.8-flash` / `medium` | 同一个模型，`high` |
+| 核对（`helper`） | — | `sonnet` / `medium` |
+
+- **用户只要求"润色"一段现成的文字**时，跳过 writer，直接从 editor 开始；如果是 C 级材料，照样做最后的核对。
+- **事实不清楚时**，先让 `coder`、`helper` 或 `planner` 整理出事实要点（比如项目 README 要先弄清代码实际做了什么），再交给 writer。writer 和 editor 都不自己去读代码、推断事实。
+- writer 报告里的【待补充】项，在汇报时列给用户；需要用户决定的，用 `AskUserQuestion` 问。
+- 文字流程**一律在本机做**。服务器上没有登录 Claude，跑不了 writer。
+- 用户点名要用别的模型或流程时，照办。
+
 ## 4.6 跨机派活（服务器）
 
 派到服务器上的 worker 用同一个派活脚本，多加 `-Machine`：
@@ -157,8 +203,8 @@ omp 的权限沿用用户的 omp 配置，目前是 `yolo`，也就是所有工�
 - **只能用 omp 类模型**（带 `provider/` 前缀）。服务器没有登录 Claude，传 `haiku/sonnet/opus` 会被脚本拒绝。所以服务器上没有 Claude 的安全分类器把关，见 4.7。
 - **服务器同时只允许 1 个 worker**（内存只有 3.6 GB，可用约 1 GB）。已有 live 的 worker 时脚本会拒绝（退出码 4）；验收完要 `hc kill <地址>; hc rm <地址>` 才能派下一个。服务器上的 `bash` 之类 shell 终端不计数。
 - `-Command` 只写本机 `templates\` 里已有的角色名。脚本每次派活时生成一次性的 `sv-<角色>--…` 变体，推到服务器，`hc run` 之后删除。常驻的 `sv-helper`、`sv-coder`、`sv-reviewer` 由 `tools\sync-templates.ps1 -Machine tc-62` 推送，只供手动使用；本机 template 改了之后重新同步一次。服务器上原有的 `reviewer`、`fixer`、`claude-reviewer` 不要动。
-- **必须由 supervisor 终端直接派。** 服务器上的 worker 只能回报给启动它的本机终端；让别的 worker 代派，回报就到不了你。脚本输出里的 `parent=…` 不是 `supervisor` 时会提示。
-- 远程 worker **不会在 Herdr 面板里建标签页**，只作为 supervisor 的子终端显示。等待照旧：`hc wait <地址>` 或 `hc wait --children any`。
+- **由 supervisor 终端直接派**，这样它的父终端是你，方便管理。
+- 远程 worker 显示在 Herdr 里 **tc-62 的 Supervisor 空间**中（脚本会自动建这个空间、打标签）。后台监听 `watch.ps1` 同样会盯着它。
 - 地址是 `tc-62/t7` 这样的完整形式，台账里一律记完整地址。元数据写在 `state\workers\<名字>.remote.json`。
 - **`resume.ps1` 不支持远程 worker。** 要追问就趁它还在时 `hc send tc-62/tN '…'`；关掉之后只能新开一个 worker，把报告路径交给它。
 - 任务说明里的英文双引号照旧用「」代替。
@@ -209,9 +255,11 @@ hc run --on tc-62 --bg --rm --no-notify --name <项目>-check -- <命令>; hc wa
 
 ## 7. 汇报风格
 
-- **需要用户做决定、批准或补充信息时，必须用 `AskUserQuestion` 工具提问，不要把问题写在正文里。** 只有这样，Herdr 才会把你显示成"等你处理"，并响提示音、弹通知提醒用户；写在正文里，你在面板上只会显示"空闲"，用户看不到你在等他。
-  - 先在正文里把背景和方案讲清楚，再用 `AskUserQuestion` 问。推荐的选项放第一个，标签末尾加"（推荐）"。
-  - 用户回答后，**先检查一遍 worker 状态**（`hc ls` 加台账）：你在等用户时，hc 会拒收 worker 的 `hc send` 回报，可能有已经完成但没回报上来的 worker。
+- **需要用户做决定、批准或补充信息时，问题写在正文里，同时给自己挂上"待决定"标签，然后结束这一轮。** 不要用 `AskUserQuestion`：选择框会让你一直卡在那里，等用户回答之前接不了任何新任务。
+  - 挂标签：`hc label supervisor "sv.ask=T00x：一句话说明要用户决定什么"`。Herdr 底部状态栏会醒目地显示"待你决定"，并响提示音、弹通知。
+  - 同时有好几件事待定时，标签里写最紧急的一件，后面加"（另有 N 件）"。正文里把每件事的背景、选项和你的推荐写清楚，推荐的选项放第一个。
+  - 用户回答之后（哪怕是在交别的任务时顺带回答），立刻处理；全部解决了就清掉标签：`hc label supervisor "sv.ask="`。还有剩下的，就把标签改成下一件。
+  - 例外：用户正在和你一来一回地澄清需求（比如刚交来一个新项目，你需要问两三个关键问题），可以用 `AskUserQuestion`，因为用户这时就在看着你。
 - 纯汇报、不需要用户回应的内容，正常写在正文里结束即可。
 - 中文，简短，先说结论。
 - 只陈述有证据的事实。没跑过的验收要明说没跑过。

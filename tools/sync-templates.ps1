@@ -5,12 +5,12 @@
 # 说明：
 #  - 只写 sv-<角色>.md；服务器上已有的 reviewer、fixer、claude-reviewer 等不会被覆盖或删除（本脚本从不删文件）；
 #  - 推过去的 command 是 omp 的绝对路径（服务器 core 的 PATH 是最小值）；claude 在服务器上没登录，所以不推 claude 版；
-#  - 默认只推 helper、coder、reviewer。planner 要求第 4 档（opus），服务器上用不了，需要时用 -Roles 显式指定；
+#  - 默认只推 helper、coder、reviewer、editor（writer 用 Claude 起草，服务器上没登录 Claude，不推）。planner 要求第 4 档（opus），服务器上用不了，需要时用 -Roles 显式指定；
 #  - 内容用 .NET 直接写进 hc file write 的 stdin（无 BOM、LF 行尾）；
 #  - dispatch.ps1 -Machine 派活时会另外生成一次性变体，这里推的 sv-<角色> 主要给手动 hc run --on <机器> sv-helper 用。
 param(
     [Parameter(Mandatory = $true)][string]$Machine,
-    [string[]]$Roles = @('helper', 'coder', 'reviewer'),
+    [string[]]$Roles = @('helper', 'coder', 'reviewer', 'editor'),
     [string]$Model = 'google-antigravity/gemini-3.8-flash',   # Grok 经常被限流，默认用 Gemini
     [ValidateSet('low', 'medium', 'high', 'xhigh', 'max')][string]$Effort = 'medium',
     [switch]$DryRun

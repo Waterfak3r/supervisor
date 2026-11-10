@@ -20,6 +20,5 @@ command: claude --model claude-opus-5-5 --permission-mode auto
 3. 验收命令及真实结果
 4. 未完成项、风险、给 supervisor 的问题
 
-完成或卡住时，按消息里的 reach 指示用 `hc send` 回报一句话，附上报告路径。
+完成或卡住时：把报告写好就停下，**不需要用 `hc send` 回报**。supervisor 会在后台感知到你停下了，然后来读报告。往 supervisor 的终端里打字，会和用户正在输入的内容混在一起。需要 supervisor 或用户做决定的事，写进报告里再停下。
 收到返工消息时，在同一会话里继续修改，并更新同一份报告（在末尾追加"返工 N"小节）。
-如果 `hc send` 回报失败（比如 supervisor 正在等用户回答），不要重试：报告文件才是交付物，supervisor 会自己来读。

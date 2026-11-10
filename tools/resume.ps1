@@ -1,4 +1,4 @@
-# 恢复一个已经关掉的 worker 的原会话（上下文都还在），然后用 hc send 给它发新指令。
+﻿# 恢复一个已经关掉的 worker 的原会话（上下文都还在），然后用 hc send 给它发新指令。
 # 用法：
 #   & D:\Programming\Project\supervisor\tools\resume.ps1 -Name demo-coder-T003
 #   hc wait demo-coder-T003; hc send demo-coder-T003 '追问或返工说明'
@@ -39,7 +39,8 @@ if ($meta.launcher -eq 'claude') {
 
 $space = Get-SupervisorSpace
 $hcArgs = @('run', '--bg', '--json', '--name', $Name, '--cwd', $meta.cwd)
-if ($Detached) { $hcArgs += @('--no-parent', '--no-notify') }
+$hcArgs += @('--no-notify')   # 不往 supervisor 的终端里打字，由 watch.ps1 监听
+if ($Detached) { $hcArgs += @('--no-parent') }
 if ($space) { $hcArgs += @('--label', "herdr.space=$($space.id)") }
 $hcArgs += @('--label', "sv.role=$($meta.role)")
 if ($meta.model) { $hcArgs += @('--label', "sv.model=$($meta.model)") }

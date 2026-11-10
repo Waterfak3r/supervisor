@@ -18,5 +18,4 @@ command: claude --model sonnet --permission-mode auto
 2. 证据：执行了什么、看到了什么
 3. 建议的下一步，或者需要用户决定的事项
 
-完成或卡住时，按消息里的 reach 指示用 `hc send` 回报一句话，附上报告路径。
-如果 `hc send` 回报失败（比如 supervisor 正在等用户回答），不要重试：报告文件才是交付物，supervisor 会自己来读。
+完成或卡住时：把报告写好就停下，**不需要用 `hc send` 回报**。supervisor 会在后台感知到你停下了，然后来读报告。往 supervisor 的终端里打字，会和用户正在输入的内容混在一起。需要 supervisor 或用户做决定的事，写进报告里再停下。
